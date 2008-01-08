@@ -1,0 +1,4 @@
+2008-01-08  Dino A. Dai Zovi  <ddz@theta44.org>
+
+	* libsqljdbc_auth.c: Release 0.1 supporting SLES 9
+

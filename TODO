@@ -1,0 +1,3 @@
+ - If libntlm is installed, use it for NTLM authentication
+   - must specify username, password, and domain properties
+   - allows connecting to DBs configured for Windows Auth only

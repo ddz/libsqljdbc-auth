@@ -1,0 +1,57 @@
+			   libsqljdbc_auth
+
+DESCRIPTION
+
+libsqljdbc_auth provides support for using Windows integrated
+authentication with the Microsoft SQL Server 2005 JDBC Driver under
+Unix operating systems.  SQL Server Authentication is not secure and
+difficult to manage in an environment with large numbers of database
+servers, but it is often the only option when connecting to a SQL
+Server Database from non-Windows operating systems.  This library
+allows users of other operating systems to use the more secure
+Integrated Authentication method with Microsoft's SQL Server 2005 JDBC
+driver using native Kerberos authentication libraries.
+
+INSTALLATION
+
+$ ./configure --with-sqljdbc=/path/to/sqljdbc.jar
+$ make
+# make install
+
+USAGE
+
+To use the library, make sure that libsqljdbc_auth.so is in Java's
+library path by either installing it into a standard location, or
+setting LD_LIBRARY_PATH and/or the java.library.path system property.
+
+Once that is done, if you specify 'integratedSecurity=true' in your
+JDBC URL, the connection to the database will be authenticated with
+Kerberos.
+
+TROUBLESHOOTING
+
+This library uses Kerberos, so your Kerberos environment and session
+must be correctly setup.  In particular, first check the following:
+  - You have a valid krbtgt listed in output of 'klist'
+  - You can obtain a Kerberos ticket for the remote database.  Attempt
+    a connection using this library and verify that 'klist' lists a
+    ticket with a principal like: MSSQLSvc/<hostname>:<port>@<realm>.
+
+libsqljdbc_auth uses Java Logging, just as Microsoft's SQL Server JDBC
+driver does.  To trace execution of the driver and this library,
+create a logging properties file containing the following:
+
+handlers=java.util.logging.ConsoleHandler
+com.microsoft.sqlserver.jdbc.level=ALL
+java.lang.level=ALL
+java.util.logging.ConsoleHandler.level=ALL
+
+Specify this file with the system property
+java.util.logging.config.file=<logging.properties> and attempt a
+database connection to gather a trace-level log.
+
+AUTHORS
+Dino A. Dai Zovi <ddz@theta44.org>
+
+RELEASE HISTORY
+0.1 - 20080108 - Initial Release
