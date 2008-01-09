@@ -51,7 +51,7 @@ java.util.logging.config.file=<logging.properties> and attempt a
 database connection to gather a trace-level log.
 
 AUTHORS
-Dino A. Dai Zovi <ddz@theta44.org>
+Dino A. Dai Zovi <ddaizovi@gmail.com>
 
 RELEASE HISTORY
 0.1 - 20080108 - Initial Release

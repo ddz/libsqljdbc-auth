@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 # Autoconf/Automake initialization
-AC_INIT(libsqljdbc_auth, 0.1, Dino.DaiZovi@gmail.com)
+AC_INIT(libsqljdbc_auth, 0.1, ddaizovi@gmail.com)
 AC_CONFIG_SRCDIR([src/sqljdbc_auth.c])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile src/Makefile])

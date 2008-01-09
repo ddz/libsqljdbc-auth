@@ -2,7 +2,7 @@
  * libsqljdbc_auth - Unix support for integrated authentication with
  *                   the Microsoft SQL Server 2005 JDBC Driver
  *
- * Copyright (c) 2008, Dino A. Dai Zovi <ddz@theta44.org>
+ * Copyright (c) 2008, Dino A. Dai Zovi <ddaizovi@gmail.com>
  *
  * All rights reserved.
  *
@@ -265,7 +265,7 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
     OM_uint32 major_status, minor_status, ret_flags;
     gss_buffer_desc output_token;
     
-    context_t* context;
+    context_t context;
     size_t context_len;
     char status[1024];
     jboolean is_context_complete;
@@ -282,11 +282,10 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
          * Allocate and initialize our context structure
          */
         context_len = sizeof(context_t);
-        context = malloc(context_len);
-        context->handle = GSS_C_NO_CONTEXT;
-        context->target = GSS_C_NO_NAME;
-        context->token.length = 0;
-        context->token.value = NULL;
+        context.handle = GSS_C_NO_CONTEXT;
+        context.target = GSS_C_NO_NAME;
+        context.token.length = 0;
+        context.token.value = NULL;
         
         /*
          * DNSNameAndPort is "<server>:<port>"
@@ -301,7 +300,7 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
         input_name.length = strlen(spn_str);
         major_status = gss_import_name(&minor_status, &input_name,
                                        GSS_KRB5_NT_PRINCIPAL_NAME,
-                                       &(context->target));
+                                       &(context.target));
 
         if (GSS_ERROR(major_status)) {
             gss_status(GSS_KRB5_NT_PRINCIPAL_NAME,
@@ -325,7 +324,7 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
                                         GSS_C_INDEFINITE,
                                         GSS_C_NO_OID_SET,
                                         GSS_C_INITIATE,
-                                        &(context->credentials),
+                                        &(context.credentials),
                                         &actual_mechs, NULL);
         if (GSS_ERROR(major_status)) {
             gss_status(actual_mechs->elements,
@@ -342,34 +341,45 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
 
         (*env)->GetIntArrayRegion(env, jniContextSize, 0, 1,
                                   (void*)&context_len);
-        context = malloc(context_len);
-        (*env)->GetByteArrayRegion(env, jniContext, 0, context_len,
-                                   (void*)context);
+        if (context_len == sizeof(context_t)) {
+            (*env)->GetByteArrayRegion(env, jniContext, 0, context_len,
+                                       (void*)&context);
+        }
+        else {
+            logger_log(env, logger, SEVERE,
+                       "INTERNAL ERROR: Context structure size mismatch");
+            return -1;
+        }
 
         /*
          * Copy sspiBlob into a gss_token for use by gss_init_sec_context.
          */
-        context->token.value = malloc(authTokenInSize);
-        context->token.length = authTokenInSize;
+        context.token.value = malloc(authTokenInSize);
+        context.token.length = authTokenInSize;
 
         (*env)->GetByteArrayRegion(env, authTokenIn, 0, authTokenInSize,
-                                   context->token.value);
+                                   context.token.value);
     }
 
     major_status = gss_init_sec_context(&minor_status,
-                                        context->credentials,
-                                        &(context->handle),
-                                        context->target,
+                                        context.credentials,
+                                        &(context.handle),
+                                        context.target,
                                         GSS_C_NO_OID,
                                         GSS_C_MUTUAL_FLAG,
                                         GSS_C_INDEFINITE,
                                         GSS_C_NO_CHANNEL_BINDINGS,
-                                        &(context->token),
-                                        &(context->mech_type),
+                                        &(context.token),
+                                        &(context.mech_type),
                                         &output_token,
                                         &ret_flags, NULL);
+
+    if (context.token.length) {
+        free(context.token.value);
+    }
+    
     if (GSS_ERROR(major_status)) {
-        gss_status(context->mech_type, major_status, minor_status,
+        gss_status(context.mech_type, major_status, minor_status,
                    "gss_init_sec_context", status, sizeof(status));
         logger_log(env, logger, SEVERE, status);
         return -1;
@@ -390,7 +400,7 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
     
     major_status = gss_release_buffer(&minor_status, &output_token);
     if (GSS_ERROR(major_status)) {
-        gss_status(context->mech_type, major_status, minor_status,
+        gss_status(context.mech_type, major_status, minor_status,
                    "gss_release_buffer", status, sizeof(status));
         logger_log(env, logger, WARNING, status);
     }
@@ -399,10 +409,8 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecGenClientContext(
      * Copy our context structure back into jniContext byte array
      */
     (*env)->SetByteArrayRegion(env, jniContext, 0, context_len,
-                               (void*)context);
+                               (void*)&context);
     (*env)->SetIntArrayRegion(env, jniContextSize, 0, 1, (void*)&context_len);
-
-    free(context);
 
     logger_log(env, logger, EXITING, "SNISecGenClientContext");
     
@@ -420,43 +428,47 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNISecReleaseClientContext(
 
     OM_uint32 major_status, minor_status;
     char status[1024];
-    context_t* context;
+    context_t context;
     size_t context_len;
 
-    logger_log(env, logger, EXITING, "SNISecReleaseClientContext");
+    logger_log(env, logger, ENTERING, "SNISecReleaseClientContext");
     
     /*
      * Retrieve our context structure
      */
     context_len = sniSecSize;
-    context = malloc(context_len);
-    (*env)->GetByteArrayRegion(env, sniSec, 0, context_len,
-                               (void*)context);
+    if (context_len == sizeof(context)) {
+        (*env)->GetByteArrayRegion(env, sniSec, 0, context_len,
+                                   (void*)&context);
+    }
+    else {
+        logger_log(env, logger, SEVERE,
+                   "INTERNAL ERROR: Context structure size mismatch");
+        return -1;
+    }
     
     major_status = gss_delete_sec_context(&minor_status,
-                                          &(context->handle),
+                                          &(context.handle),
                                           GSS_C_NO_BUFFER);
     if (GSS_ERROR(major_status)) {
-        gss_status(context->mech_type, major_status, minor_status,
+        gss_status(context.mech_type, major_status, minor_status,
                    "gss_delete_sec_context", status, sizeof(status));
         logger_log(env, logger, WARNING, status);
     }
 
-    major_status = gss_release_name(&minor_status, &(context->target));
+    major_status = gss_release_name(&minor_status, &(context.target));
     if (GSS_ERROR(major_status)) {
-        gss_status(context->mech_type, major_status, minor_status,
+        gss_status(context.mech_type, major_status, minor_status,
                    "gss_release_name", status, sizeof(status));
         logger_log(env, logger, WARNING, status);
     }
 
-    major_status = gss_release_buffer(&minor_status, &(context->token));
+    major_status = gss_release_buffer(&minor_status, &(context.token));
     if (GSS_ERROR(major_status)) {
-        gss_status(context->mech_type, major_status, minor_status,
+        gss_status(context.mech_type, major_status, minor_status,
                    "gss_release_buffer", status, sizeof(status));
         logger_log(env, logger, WARNING, status);
     }
-
-    free(context);
 
     logger_log(env, logger, EXITING, "SNISecReleaseClientContext");
     
@@ -541,7 +553,7 @@ Java_com_microsoft_sqlserver_jdbc_AuthenticationJNI_SNIIsEqualToCurrentSID(
     jbyteArray SID,
     jobject logger)
 {
-    logger_log(env, logger, EXITING, "SNIIsEqualToCurrentSID");
+    logger_log(env, logger, ENTERING, "SNIIsEqualToCurrentSID");
 
     /* Do nothing */
     
